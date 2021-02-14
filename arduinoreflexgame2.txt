@@ -1,0 +1,360 @@
+#include <util/delay.h>
+ 
+int counter;
+//int ledDelay = 800;
+int ledPins[9] = {A0,A1,A2,A3,A4,A5,11,12,13};
+int btnPins [9] = {2,3,4,5,6,7,8,9,10};
+
+int ledStatus = 0;
+unsigned long prevMillis = 0;
+unsigned long pause = 500;
+
+int ledCounter = 2; // SETS LEDS ON AND OFF AND MOVE TO THE NEXT LED
+
+bool sweepSeries = true;
+bool isBtnPressed = false;
+
+int gameScore;
+
+int noOfLives = 5;
+int noOfBigWins;
+int noOfFails;
+
+int bigWinScore = 5;
+
+void setup(){
+  Serial.begin(9600);
+  
+  //Reminder to me: I still need to adjust my DDR  
+  /*DDRB = B00111000;
+  PORTB =B00000111;
+  
+  DDRC = B00111111;
+  PORTC =B00000000;*/
+  
+  //LED PINS
+   pinMode(A0, OUTPUT);
+   pinMode(A1, OUTPUT);
+   pinMode(A2, OUTPUT);
+   pinMode(A3, OUTPUT);
+   pinMode(A4, OUTPUT);
+   pinMode(A5, OUTPUT); 
+   pinMode(11, OUTPUT);
+   pinMode(12, OUTPUT);
+   pinMode(13, OUTPUT);
+//BUTTON PINS  
+   pinMode(2, INPUT_PULLUP);
+   pinMode(3, INPUT_PULLUP);
+   pinMode(4, INPUT_PULLUP);
+   pinMode(5, INPUT_PULLUP);
+   pinMode(6, INPUT_PULLUP);
+   pinMode(7, INPUT_PULLUP); 
+   pinMode(8, INPUT_PULLUP);
+   pinMode(9, INPUT_PULLUP);
+   pinMode(10, INPUT_PULLUP);
+  
+   Serial.println("********************");
+   Serial.println(String("No Of Lives: ") + String(noOfLives));
+   Serial.println("********************");
+
+}
+
+void loop(){
+ 
+  
+  if(noOfLives != 0 && sweepSeries == true && counter <=8){
+    sweepPattern(ledPins[counter]);
+  
+  
+  
+  if(ifBtnIsPressed() == true && checkBtnPresed() == btnPins[counter]){
+  	 sweepSeries = false;
+    _delay_ms(200);
+    digitalWrite(ledPins[counter], LOW);// turn off corresponding led
+   // _delay_ms(200);
+    microWinStatus();
+    if(gameScore == bigWinScore){
+       //bigWinPattern();
+        bigWinStatus();
+    }
+ }
+  
+   if(ifBtnIsPressed() == true && checkBtnPresed() != btnPins[counter]){
+  	 sweepSeries = false;
+     _delay_ms(200);
+    digitalWrite(ledPins[counter], LOW);// turn off corresponding led
+    // _delay_ms(200);
+   // failPattern();
+     failStatus();
+    //Serial.println("You Lose!"); 
+     
+   }  
+     
+    //end of the wrapper if statement
+ } 
+  
+  if (noOfLives == 0 && isBtnPressed == false ) {
+    
+      Serial.println("Game Over!");
+    _delay_ms(300000);
+      //sweepSeries = false;
+      //delay(1000);
+      //digitalWrite(ledPins[counter], LOW);
+      //failStatus();
+  }
+  
+ 
+  
+  //end of loop
+}
+
+
+
+//this to check for the button that was pressed
+int checkBtnPresed(){
+  int btnPressed;
+  for(int x =0; x<=8; x++){
+    if(digitalRead(btnPins[x]) == LOW){
+       btnPressed = btnPins[x];
+      break;
+    }
+  }
+       return btnPressed;
+}
+
+//confirm if button is pressed
+bool ifBtnIsPressed(){
+   for(int x =0; x<=8; x++){
+    if(digitalRead(btnPins[x]) == LOW){
+       isBtnPressed = true;
+       break;
+  }   
+ }
+return isBtnPressed;
+}
+
+
+void microWinStatus(){
+  microWinPattern();
+  gameScore++;
+  Serial.println("********************");
+  Serial.println("MICRO WIN!");
+  Serial.println(String("Your Score: ") + String(gameScore));
+  _delay_ms(1000);
+  Serial.println("Begin Next Level!");
+  Serial.println("********************");
+  _delay_ms(2000);
+  ledCounter = 2;
+  pause -= 100;
+  //ledDelay -= 100;
+  counter = 0;
+  ledStatus = 0;
+  isBtnPressed = false;
+  sweepSeries = true;
+}
+
+
+void bigWinStatus(){
+  bigWinPattern();
+  gameScore = 0;
+  noOfBigWins++;
+  Serial.println("********************");
+  Serial.println("Congrats! Big Win!");
+  Serial.println(String("Number Of Big wins: ")+String(noOfBigWins));
+  Serial.println("********************");
+  _delay_ms(3000);
+  pause = 500;
+  //ledCounter = 2;
+  //Check for two consecutive big wins and add one life as a token if
+  // the condtion is met
+  if(noOfBigWins == 2){
+  	noOfLives++;
+    noOfBigWins = 0;
+    Serial.println("Congrats! 1 Life Added!");
+    Serial.println(String("Lives Left: ") + String(noOfLives));
+  }
+  //pause -= 100;
+  //ledDelay -= 100;
+  gameScore = 0;
+  counter = 0;
+  sweepSeries = true;
+  
+}
+
+void failStatus(){
+  failPattern();
+  restartGame();
+  Serial.println("Restart Game!");
+  _delay_ms(1500);
+  //pause = 500;
+  noOfFails++;
+  noOfBigWins = 0;
+  if(noOfFails == 3){
+  	noOfLives--;
+    noOfFails = 0;
+    Serial.println("1 Life Lost!");
+    Serial.println(String("Lives Left: ") + String(noOfLives));
+  }
+  counter = 0;
+  sweepSeries = true;   
+}
+
+// This is called in the fail function to display 
+//the result and start the game all over again
+void restartGame(){
+   gameScore = 0;
+   ledCounter = 2;
+   //ledDelay = 300;
+   ledStatus = 0;
+   pause = 500;
+   isBtnPressed = false;
+   Serial.println("********************");
+   Serial.println("You Lose!");
+   Serial.println(String("Your Score: ") + String(gameScore));
+   Serial.println("********************");
+   _delay_ms(2000);
+}
+
+
+//using arduino reference to blink leds without delay
+//the millis() function is used here to record the number of 
+//milliseconds the system started running, to blink the LEDS
+void sweepPattern(int ledPins){
+  unsigned long presentMillis = millis();
+  if(presentMillis - prevMillis > pause){
+      prevMillis = presentMillis;
+    if(ledStatus == LOW){
+    	ledStatus = HIGH;
+    } else{
+      ledStatus = LOW;
+   }
+    digitalWrite(ledPins, ledStatus);
+    ledCounter--;
+  }
+  if(ledCounter == 0){
+  	ledCounter = 2;
+     counter++;
+  }
+}
+
+// flashing pattern for micro win
+void microWinPattern(){
+  digitalWrite(A5, HIGH);
+   _delay_ms(10);
+   digitalWrite(11, HIGH);
+   _delay_ms(10);
+   digitalWrite(12, HIGH);
+   _delay_ms(10);
+   digitalWrite(13, HIGH);
+   _delay_ms(10);
+   digitalWrite(A5, LOW);
+   _delay_ms(10);
+   digitalWrite(11, LOW);
+   _delay_ms(10);
+   digitalWrite(12, LOW);
+   _delay_ms(10);
+   digitalWrite(13, LOW);
+   _delay_ms(10);
+}
+
+
+// flashing pattern for big win 
+void bigWinPattern(){
+   digitalWrite(A5, HIGH);
+   _delay_ms(10);
+   digitalWrite(11, HIGH);
+   _delay_ms(10);
+   digitalWrite(12, HIGH);
+   _delay_ms(10);
+   digitalWrite(13, HIGH);
+   _delay_ms(10);
+   digitalWrite(A4, HIGH);
+   _delay_ms(10);
+   digitalWrite(A5, LOW);
+   _delay_ms(10);
+   digitalWrite(11, LOW);
+   _delay_ms(10);
+   digitalWrite(12, LOW);
+   _delay_ms(10);
+   digitalWrite(13, LOW);
+   _delay_ms(10);
+   digitalWrite(A4, LOW);
+   _delay_ms(10);
+  digitalWrite(A0, HIGH);
+   _delay_ms(10);
+   digitalWrite(A1, HIGH);
+   _delay_ms(10);
+   digitalWrite(A2, HIGH);
+   _delay_ms(10);
+   digitalWrite(A3, HIGH);
+   _delay_ms(10);
+   digitalWrite(A0, LOW);
+   _delay_ms(10);
+   digitalWrite(A1, LOW);
+   _delay_ms(10);
+   digitalWrite(A2, LOW);
+   _delay_ms(10);
+   digitalWrite(A3, LOW);
+   _delay_ms(10);
+  
+}
+
+// flashing pattern for fail status
+void failPattern(){
+   digitalWrite(A0, HIGH);
+   _delay_ms(10);
+   digitalWrite(A1, HIGH);
+   _delay_ms(10);
+   digitalWrite(A2, HIGH);
+   _delay_ms(10);
+   digitalWrite(A3, HIGH);
+   _delay_ms(10);
+   digitalWrite(A0, LOW);
+   _delay_ms(10);
+   digitalWrite(A1, LOW);
+   _delay_ms(10);
+   digitalWrite(A2, LOW);
+   _delay_ms(10);
+   digitalWrite(A3, LOW);
+   _delay_ms(10);
+}
+
+//flashing pattern for game reset 
+void resetPattern(){
+  digitalWrite(A5, HIGH);
+   _delay_ms(10);
+   digitalWrite(11, HIGH);
+   _delay_ms(10);
+   digitalWrite(12, HIGH);
+   _delay_ms(10);
+   digitalWrite(13, HIGH);
+   _delay_ms(10);
+   digitalWrite(A5, LOW);
+   _delay_ms(10);
+   digitalWrite(11, LOW);
+   _delay_ms(10);
+   digitalWrite(12, LOW);
+   _delay_ms(10);
+   digitalWrite(13, LOW);
+   _delay_ms(1000);
+  digitalWrite(A0, HIGH);
+   _delay_ms(10);
+   digitalWrite(A1, HIGH);
+   _delay_ms(10);
+   digitalWrite(A2, HIGH);
+   _delay_ms(10);
+   digitalWrite(A3, HIGH);
+   _delay_ms(10);
+   digitalWrite(A0, LOW);
+   _delay_ms(10);
+   digitalWrite(A1, LOW);
+   _delay_ms(10);
+   digitalWrite(A2, LOW);
+   _delay_ms(10);
+   digitalWrite(A3, LOW);
+   _delay_ms(10);
+}
+
+
+
+

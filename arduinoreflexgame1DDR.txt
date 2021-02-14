@@ -1,0 +1,373 @@
+//include the LCD from library
+#include <LiquidCrystal.h>
+/*
+--Author: David Afolabi
+--Dept: MSc. Computing(Software Engineering)
+--Date: 21st January, 2021
+--Purpose: To design a game that allows a user to win by clicking 
+the button when the middle LED is on.
+*/
+//add lcd constructor
+LiquidCrystal lcd(A5,4,A3,A2,A1,A0);
+//initialize pins for the tilt switch
+const int flipSwitch = 3;
+int flipSwitchStatus = 0;
+int chooseLives;
+//initialize lives 
+int noOfLivesLeft;
+//set number of big wins
+int noOfBigWins;
+//set number of fails 
+int noOfFails;
+// shows the number of levels to bigWin
+int beforeBigWin = 9; 
+//initialize speaker pin
+const int speakerPin = A4;
+//winning LED status 
+int winLedStatus;
+//set boolean to start sweeping series of LED 
+bool sweepSeries = true;
+//set boolean to check if the button is clicked 
+bool btnClick = false;
+//initialize counter for the sweeping series 
+int sweepCounter;
+//initialize button pin
+const int ledBtn = 2;
+//set array to generate different frequency notes
+int frequencyNotes[4] = {500,650,800,890};
+//set bigwin score 
+ int bigWinScore = 9;
+//intialize game score counter
+int gameScore;
+// array of LEDs
+int ledPins[9] = {PORTB0,PORTB1,PORTB2,PORTB3,PORTB4,PORTB5,PORTD5,PORTD6,PORTD7};
+//led delay time
+int ledDelay = 1000;
+//set boolean to check if player has selected lives 
+bool selectLives = false;
+//set the pin modes using Registers in Arduino 
+void setup()
+{
+  // activates serial monitor 
+  Serial.begin(9600); 
+  //Data Direction Registers and Port Registers 
+  DDRB =  B00111111;
+  PORTB=  B00000000; 
+  DDRC =  B00111111;
+  PORTC=  B00000000;
+  DDRD =  B11110000;
+  PORTD=  B00001100;
+  // use interrupt for pin 2 in falling mode 
+  attachInterrupt(digitalPinToInterrupt(2), ledIdentityBtn, FALLING);
+  //LCD displays the game setup
+  lcd.begin(16, 2);
+  lcd.print("SMART MIND!");
+  lcd.setCursor(2,1);
+  lcd.print("Choose Lives!");
+}
+
+/*
+--Date: 21st January, 2021
+--Purpose: This is a loop method that checks different conditions
+in the game to determine a win or a fail
+*/ 
+void loop()
+{
+  flipSwitchStatus = digitalRead(flipSwitch); 
+   if(flipSwitchStatus == LOW && selectLives == false){
+      noOfLivesLeft = random(0, 4);
+      selectLives = true;
+      lcd.clear();
+      lcd.print("Your Lives: " + String(noOfLivesLeft));
+}
+if(noOfLivesLeft == 0 && selectLives == true){
+      lcd.clear();
+      lcd.print("GAME OVER!");
+}
+if(noOfLivesLeft != 0 && selectLives == true){
+  	delay(1000);
+    lcd.clear();
+    lcd.print("Level Begins!");
+     delay(1000);
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print(beforeBigWin + String(" levels")); 
+    lcd.setCursor(0,1);        
+    lcd.print(String("to big win!"));
+  //Begin Counter to start game
+    for(sweepCounter = 0; sweepCounter <= 8; sweepCounter++){
+    	if(sweepSeries == true && sweepCounter <=8){     
+    		sweepPattern(ledPins[sweepCounter]);
+    	} 
+      }
+  if(btnClick == true && winLedStatus == 1){
+      
+    	microWinStatus();      
+    
+   if( gameScore == bigWinScore){
+      bigWinStatus();  
+    }     
+ }
+ if(btnClick == true && winLedStatus == 0){
+  		failStatus();     
+  }
+ } 
+ if(btnClick == false && sweepCounter >= 8){
+       failStatus();
+  } 
+}
+
+/*
+--Date: 21st January, 2021
+--Purpose: the function checks if the green led(win LED) is on
+then stops the sweeping series when the button is clicked
+using interrupt function 
+*/
+void ledIdentityBtn(){
+  winLedStatus = (PINB & (1<<PORTB4)) >> PORTB4;//digitalRead(12);
+  btnClick = true;
+  sweepSeries = false;	
+}
+
+/*
+--Date: 21st January, 2021
+--Putpose: this function sets thesweeping pattern of the LED
+*/ 
+void sweepPattern(int ledPins){
+  if(sweepCounter <= 5){
+    
+   PORTB = (1<<ledPins) | PORTB;
+   delay(ledDelay);
+   PORTB = ~(1<<ledPins) & PORTB;
+  } else {
+   PORTD = (1<<ledPins) | PORTD;
+   delay(ledDelay);
+   PORTD = ~(1<<ledPins) & PORTD;
+  }      
+}
+
+/*
+--Date: 21st January, 2021
+--Purpose: The micro win function
+increases the speed of the LED sweep.
+After every micro win
+the score also increases
+*/
+void microWinStatus(){
+  microWinPattern();
+  gameScore++; 
+  lcd.clear();
+  lcd.print("Micro Win!");
+  lcd.setCursor(0,1);
+  lcd.print(String("Your Score: ") + String(gameScore));
+  delay(3000);
+  lcd.clear();
+  lcd.print("Next Level!");
+  delay(2000);  
+  sweepCounter = 0; 
+  ledDelay -= 100;
+  sweepSeries = 1;  
+  beforeBigWin--; 
+  btnClick = false;
+}
+
+/*
+--Date: 21st January, 2021
+--Purpose: The big win function shows that a player has 
+completed 9 levels or microwins of the game successfully
+the game is then reset after the micro win 
+*/
+void bigWinStatus(){
+  bigWinPattern();
+  lcd.clear();
+  lcd.print("Big Win!!!");
+  lcd.setCursor(0,1);
+  lcd.print(String("Your Score: ") + String(gameScore));
+  delay(2000);
+  lcd.clear();
+  lcd.print("Play Again!");
+  delay(3000);
+  ledDelay = 1000;
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("New Game!");
+  beforeBigWin = 9;
+  noOfBigWins++;
+  /*
+  --Purpose: check if consecutive big win is two
+  then adds one life as a token 
+  this occurs after every two consecutive bigwin
+  */
+  if(noOfBigWins == 2){
+  noOfLivesLeft++;
+    noOfBigWins = 0;
+    lcd.clear();
+    lcd.print(String("1 life added!"));
+  }
+  ledDelay = 1000;
+  sweepCounter = 0; 
+  sweepSeries = 1;
+  gameScore = 0; 
+}
+
+/*
+--Date: 20th January, 2021
+--Purpose: fail function shows that the player has failed 
+the game by pressing the wrong button or not pressing any button 
+*/
+void failStatus(){
+	failPattern(); 	 
+    restartGame();
+    delay(5000);
+    lcd.clear();
+    lcd.print("Restart Game!");
+    delay(1000);
+    lcd.clear();
+    noOfFails++;
+    noOfBigWins = 0;  
+    delay(1000);
+    lcd.clear(); 
+    beforeBigWin = 9; 
+  if(noOfFails == 8){
+    noOfLivesLeft--; 
+    noOfFails = 0;
+    lcd.clear();
+    lcd.print(String("1 life Lost!"));
+    lcd.setCursor(0,1);
+    lcd.print(String("Lives Left: ") + String(noOfLivesLeft));
+    delay(2000);
+    lcd.clear();
+  }
+    sweepCounter = 0;
+    sweepSeries = 1;
+}
+
+/*
+--Date: 20th January, 2021
+--Purpose: This resets game satus after a fail
+this method is designed only for the fail function
+*/
+void restartGame(){
+  gameScore = 0;
+  ledDelay = 1000;
+  lcd.clear();
+  lcd.print("You Lose!");
+  lcd.setCursor(0,1);
+  lcd.print(String("Your Score: ") + String(gameScore));
+  resetPattern();
+}
+
+/*
+--Date: 20th January, 2021
+--Purpose: big win pattern combination of fail 
+pattern + microwin pattern to flash LEDs
+*/
+void bigWinPattern(){
+ tone(speakerPin, frequencyNotes[1]);
+    //fail pattern
+  	PORTB = (1<<PORTB0) | PORTB;
+    delay(10);
+    PORTB = (1<<PORTB1) | PORTB;
+    delay(10);
+    PORTB = (1<<PORTB2) | PORTB;
+    delay(10);
+    PORTB = (1<<PORTB3) | PORTB;
+    delay(10);
+    PORTB = ~(1<<PORTB0) & PORTB;
+    delay(10);
+    PORTB = ~(1<<PORTB1) & PORTB;
+    delay(10);
+    PORTB = ~(1<<PORTB2) & PORTB;
+    delay(10);
+    PORTB = ~(1<<PORTB3) & PORTB;
+    delay(10); 
+  //win pattern
+    PORTB = (1<<PORTB5) | PORTB;
+    delay(10);
+    PORTD = (1<<PORTD5) | PORTD;
+    delay(10);
+    PORTD = (1<<PORTD6) | PORTD;
+    delay(10);
+    PORTD = (1<<PORTD7) | PORTD;
+    delay(10);
+    PORTB = ~(1<<PORTB5) & PORTB;
+    delay(10);
+    PORTD = ~(1<<PORTD5) & PORTD;
+    delay(10);
+    PORTD = ~(1<<PORTD6) & PORTD;
+    delay(10);
+    PORTD = ~(1<<PORTD7) & PORTD;
+    delay(10);  
+  //5TH LED
+    PORTB = (1<<PORTB4) | PORTB;
+    delay(10);
+    PORTB = ~(1<<PORTB4) & PORTB;
+    delay(10); 
+   noTone(speakerPin);
+    
+}
+
+/*
+Date: 20th January, 2021
+--Purpose: Sets a flashing pattern for the LEDs to 
+indicate a micro win. 
+*/
+void microWinPattern(){
+  tone(speakerPin, frequencyNotes[2]); //activate sound
+	PORTB = (1<<PORTB5) | PORTB;
+    delay(10);
+    PORTD = (1<<PORTD5) | PORTD;
+    delay(10);
+    PORTD = (1<<PORTD6) | PORTD;
+    delay(10);
+    PORTD = (1<<PORTD7) | PORTD;
+    delay(10);
+    PORTB = ~(1<<PORTB5) & PORTB;
+    delay(10);
+    PORTD = ~(1<<PORTD5) & PORTD;
+    delay(10);
+    PORTD = ~(1<<PORTD6) & PORTD;
+    delay(10);
+    PORTD = ~(1<<PORTD7) & PORTD;
+    delay(10);
+  noTone(speakerPin); // end sound
+}
+
+/*
+--Date: 20th January, 2021
+--Purpose: sets a fail pattern for the game with LEDs
+*/
+void failPattern(){
+ tone(speakerPin, frequencyNotes[3]); //activate sound
+	PORTB = (1<<PORTB0) | PORTB;
+    delay(10);
+    PORTB = (1<<PORTB1) | PORTB;
+    delay(10);
+    PORTB = (1<<PORTB2) | PORTB;
+    delay(10);
+    PORTB = (1<<PORTB3) | PORTB;
+    delay(10);
+    PORTB = ~(1<<PORTB0) & PORTB;
+    delay(10);
+    PORTB = ~(1<<PORTB1) & PORTB;
+    delay(10);
+    PORTB = ~(1<<PORTB2) & PORTB;
+    delay(10);
+    PORTB = ~(1<<PORTB3) & PORTB;
+    delay(10); 
+  noTone(speakerPin); // end sound 
+}
+
+/*
+--Date: 20th January, 2021
+--Purpose: Sets a reset pattern for game with LEDs
+*/
+void resetPattern(){
+ tone(speakerPin, frequencyNotes[0]);//activate sound
+	PORTB = (1<<PORTB0) | PORTB;
+    PORTD = (1<<PORTD7) | PORTD;
+    delay(1000);
+    PORTB = ~(1<<PORTB0) & PORTB;
+    PORTD = ~(1<<PORTD7) &  PORTD; 
+  noTone(speakerPin);    // end sound
+}

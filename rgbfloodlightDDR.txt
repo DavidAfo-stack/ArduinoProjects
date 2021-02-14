@@ -1,0 +1,219 @@
+/*
+Author: David Afolabi
+Date: 18th January, 2021
+Purpose:  To design an RGB flood light that gets activated when motion
+is sensed.
+*/
+//initialize pins
+const int ldr = A0;
+const int pirSensor = 3;
+const int manualBtn = 2;
+const int rgbRed = 9;
+const int rgbBlue = 10;
+const int rgbGreen = 11;
+const int potMeter = A1;
+const int triggerPin = 4;
+const int echoPin = 5;
+const int distanceAdjuster = A2; // potentiometer to adjust distance on the ultrasonic sensor 
+const int strobeLights = A3;
+const int colorControlBtn = 7;
+//set status 
+int ldrStatus; //initialize the status of light dependednt resistor 
+int pirStatus = 0; // set motion sensor status to zero
+int potStatusInput = 0; // set potentiometer input value to zero
+int potStatusOutput = 0;// initialize potentiometer output value 
+int distanceAdjusterInput = 0; //initialize potentiometer to control distance input 
+int distanceAdjusterOutput = 0;//initialize potentiometer to control distance output 
+int sensitivityThreshold; //intialize sensitivity threshold 
+int delayLightSecs = 5000; // delay interval for light when it is dark
+bool delayFiveSecs = false; // this will be true if still waiting for delay to finish for 5 seconds 
+int delaySensorTrigger = 15000; //delays for 15seconds when motion sensor is triggered 
+bool delayFifteenSecs = false; // intialize delay to be false before sensing motion
+long period, cm, inches; //distance measurement parameters
+long minDist; //initialize minimum distance
+/*
+--Date: 18th January, 2021
+--Purpose: Set pin mode using registers in arduino 
+*/
+void setup()
+{
+  Serial.begin(9600);//activates serial monitor
+    DDRB = B00001110;
+    PORTB= B00000000;
+    DDRC = B00000000;
+    PORTC= B00001111;
+    DDRD = B00010000;
+    PORTD= B10101100;
+} 
+
+/*
+--Date: 18th January, 2021
+--Purpose: this is the loop function that checks the condition necessary 
+for the RGB to turn on when motion is sensed 
+*/
+void loop()
+{
+  pirStatus = digitalRead(pirSensor);  
+   ldrStatus = analogRead(ldr);
+   Serial.print(ldrStatus);
+   Serial.println(" is the LDR value");
+   potController();  
+  if(ldrStatus <= sensitivityThreshold  && delayFiveSecs == false){  
+     int delaySecs = 1000; // we set a delay of 1000 milliseconds for every sequence of the led  
+      for(int delayCounter = 0; delayCounter < delayLightSecs; delayCounter += delaySecs){ 
+    	activateLight();
+        delay(delaySecs);
+      	delayLightSecs - delaySecs;// reduction of 1000 milliseconds for every sequence of the led for 6 seconds  
+    }
+     delayFiveSecs = true;
+ } 
+     ultraDistanceSetup();
+   	 Serial.println("----------------");
+     Serial.print(cm);
+     Serial.println("cm value for ultrasonic sensor");
+     Serial.println("----------------");
+  distanceController();
+ if(ldrStatus <= sensitivityThreshold  && cm <= minDist && pirStatus == HIGH){  
+    	int delayInSecs = 1000; 
+    for(int delayCounter = 0; delayCounter < delaySensorTrigger; delayCounter += delayInSecs){   
+         activateLight(); 
+         delay(delayInSecs);
+      	 delaySensorTrigger - delayInSecs;
+    }   
+  }
+    manualMode();
+    strobeEffect();
+    colorController();
+}
+
+/*
+--Date: 18th January, 2021
+--Purpose: This function is used to set the functionality of 
+the ultrasonic sensor to measure distance 
+*/
+void ultraDistanceSetup(){
+   PORTD = ~(1<<PORTD4) & PORTD; // this clears the trigger pin
+   delayMicroseconds(2);  
+   PORTD = (1<<PORTD4) | PORTD; // sets the trigger pin high for 10 microseconds 
+   delayMicroseconds(10); // Wait for 10µs, the pulse remains active during this time
+   PORTD = ~(1<<PORTD4) & PORTD;// trigger pin set to low and pulse is stopped to wait for the echo 
+   period = pulseIn(echoPin, HIGH) ;// pulseIn measures the time since the echoPin changes its status from low to high
+   cm = microsecToCm(period);
+}
+
+/*
+--Date: 18th January, 2021
+--Purpose: This function is used to convert microseconds to centimeter and it is used 
+by the ultrasonic sensor to measure distance in cemtimeters
+*/
+long microsecToCm(long microseconds)
+{
+	return microseconds / 29 / 2;
+}
+
+/*
+--Date: 18th January, 2021
+Purpose: This function is used to get white color in the RGB 
+*/
+void whiteOn(){
+  analogWrite(rgbRed, 255); 
+  analogWrite(rgbGreen, 255); 
+  analogWrite(rgbBlue, 255);
+}
+ 
+/*
+--Date: 18th January, 2021
+Purpsoe: This function is used to activate the RGB 
+and also sets pattern for its blinking status
+*/
+void activateLight(){
+ 
+    
+    PORTB = (1<<PORTB1) | PORTB;
+    delay(100);
+    PORTB = ~(1<<PORTB1) & PORTB;;
+    delay(40);
+    PORTB = (1<<PORTB2) | PORTB;
+    delay(100);
+    PORTB = ~(1<<PORTB2) & PORTB;
+    delay(40);
+    PORTB = (1<<PORTB3) | PORTB;
+    delay(100);
+    PORTB = ~(1<<PORTB3) & PORTB;
+    delay(40);
+}
+
+/*
+--Date: 18th January, 2021
+--Purpose: This method is used to control the sensitivity 
+threshold with the use of potentiometer */
+void potController(){
+    potStatusInput = analogRead(potMeter);
+    potStatusOutput = map(potStatusInput, 0, 1023, 54, 974);  
+    sensitivityThreshold = potStatusOutput;  
+    Serial.print(sensitivityThreshold);
+    Serial.println(" is the Sensitivity Threshold value");
+}
+
+/*
+--Date: 18th January, 2021
+--Purpose: This method uses potentiometer to set 
+the minimum distance to activate the flood light  
+*/
+void distanceController(){
+	distanceAdjusterInput = analogRead(distanceAdjuster);
+  	distanceAdjusterOutput = map(distanceAdjusterInput, 0, 1023, 2, 400);// gotten from ultrasonic sensor registers //highest is 400cm and lowest is 2cm.
+    minDist = distanceAdjusterOutput;
+  	Serial.print(minDist);
+    Serial.println(" is the adjusted value for distance by user");
+}
+
+/*
+--Date: 18th January, 2021
+--Purpose: this function puts the LED in manual mode 
+whereby the LED stays on without timing out when the button is clicked 
+*/
+void manualMode(){
+  int btnStatus = (PIND & (1<<PORTD2))>>PORTD2;   
+  if(btnStatus  == LOW){
+      PORTB = (1<<PORTB1) | PORTB;
+      delay(1000);
+  }
+}
+
+/*
+--Date: 18th January, 2021
+--Purpose: cycles through different preset colours
+*/
+void colorController(){
+    int controlColorBtnStatus = (PIND & (1<<PORTD7))>>PORTD7;   
+  if(controlColorBtnStatus == LOW){
+      whiteOn();
+      delay(500);
+    //magenta
+      analogWrite(rgbRed, 255);
+      analogWrite(rgbGreen, 0);
+      analogWrite(rgbBlue, 255);   
+      delay(500);
+    //raspberry
+      analogWrite(rgbRed, 255);
+      analogWrite(rgbGreen, 255);
+      analogWrite(rgbBlue, 125);   
+      delay(500);       
+  } else {
+     analogWrite(rgbRed, LOW);
+     analogWrite(rgbGreen, LOW);
+     analogWrite(rgbBlue, LOW);
+  } 
+}
+
+/*
+--Date: 18th January, 2021
+--Purpose: stroboscopic and dimming control
+Stroboscopic effect occurs when light flashes in an interrupted manner but at definite rates.
+*/
+void strobeEffect(){
+  int strobeStatusInput = analogRead(strobeLights);
+  analogWrite(rgbBlue, strobeStatusInput);
+  delay(100);
+}

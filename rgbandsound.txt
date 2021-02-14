@@ -1,0 +1,110 @@
+//add delay library
+#include <util/delay.h>
+//initialize pins
+const int rgbRed = 4;
+const int rgbBlue = 5;
+const int rgbGreen = 6;
+const int rgbBtn = 3; 
+const int potMeter = A0;
+const int piezoBuzzer = 7;
+const int piezoBtns = 2;
+const int soundPotMeter = A1;
+//array of frequencies
+int frequencyNotes[] = {250, 300, 350, 400};
+/*
+--Date: 15th January, 2021
+--Purpose: set pin modes using Registers in arduino 
+*/
+void setup()
+{
+    Serial.begin(9600);//activstes serial monitor 
+  	DDRC = B00000000;
+  	PORTC = B00000011;
+ 	DDRB = B00000000;
+    PORTB = B00000010;
+    DDRD = B11110000;
+    PORTD = B00001100;
+}
+
+/*
+--Date: 15th January, 2021
+--Purpose: The loop function is used to cycle through each methods in the program 
+*/
+void loop()
+{
+    potController();
+    btnControlledRgb();
+    soundDisplay();  
+}
+
+/*
+--Date: 15th January, 2021
+--Purpose: This method is used to set functionality for the sounds
+When the button is clicked, different tone frequencies are generated at random
+*/
+void soundDisplay(){
+   int soundStatus = (PIND & (1<<PORTD2))>>PORTD2;
+   int ranNum = random(4,7);
+  if(soundStatus == LOW){
+    PORTD = (1<<ranNum) | PORTD;
+    _delay_ms(50);
+   	 tone(7, random(100, 900));
+    adjutustSoundFrequencies();
+  }
+  else {
+     PORTD = ~(1<<ranNum) & PORTD;
+     	 noTone(7);
+  }
+}
+
+/*
+--Date: 15th January, 2021
+--Purpose: This method displays RGB colors when the button is clicked 
+*/
+void btnControlledRgb(){
+  int rgbBtnState = (PIND & (1<<rgbBtn)) >> rgbBtn; 
+  if(rgbBtnState == LOW){
+  	PORTD = (1<<PORTD4) | PORTD;
+  	_delay_ms(1000);
+    PORTD = ~(1<<PORTD4) & PORTD;
+    PORTD = (1<<PORTD5) | PORTD;
+    _delay_ms(500);
+    PORTD = ~(1<<PORTD5) & PORTD;
+    PORTD = (1<<PORTD6) | PORTD;
+    _delay_ms(500);
+    PORTD = ~(1<<PORTD6) & PORTD;
+    _delay_ms(500);
+  } else
+  {
+    PORTD = ~(1<<PORTD4) & PORTD;
+  _delay_ms(500);
+     PORTD = ~(1<<PORTD5) & PORTD;
+  _delay_ms(500);
+     PORTD = ~(1<<PORTD6) & PORTD;
+  _delay_ms(500);
+  }
+}
+
+/*
+--Date: 15th January, 2021
+--Purpose: This is used to set dimming control for the green LED in the RGB
+*/
+void potController(){
+	int inputVal = analogRead(potMeter);
+    int outputVal = map(inputVal, 0, 1023, 0, 255);  
+    analogWrite(rgbGreen, outputVal);
+    _delay_ms(100);// use the output with PWM to control led brightness
+}
+
+/*
+--Date: 15th January, 2021
+--Purpose: This uses the potentiometer to adjust different sound frequencies 
+*/
+void adjutustSoundFrequencies(){
+	int soundInput = analogRead(soundPotMeter);
+    int soundOutput = map(soundInput, 0, 1023, 100,900);
+    Serial.print("Sound Frequency: ");
+    Serial.println(soundOutput); 
+    analogWrite(7, soundOutput);
+}
+

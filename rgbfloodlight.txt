@@ -1,0 +1,242 @@
+const int ldr = A0;
+const int pirSensor = 3;
+const int manualBtn = 2;
+const int rgbRed = 9;
+const int rgbBlue = 10;
+const int rgbGreen = 11;
+const int potMeter = A1;
+const int triggerPin = 4;
+const int echoPin = 5;
+const int distanceAdjuster = A2; // potentiometer to adjust distance on the ultrasonic sensor 
+
+const int strobeLights = A3;
+
+const int colorControlBtn = 7;
+
+int ldrStatus;
+int pirStatus = 0;
+int potStatusInput = 0;
+int potStatusOutput = 0;
+
+int distanceAdjusterInput = 0;
+int distanceAdjusterOutput = 0;
+
+int sensitivityThreshold;
+
+int delayLightSecs = 6000; // for 6 seconds when it is dark
+bool delayFiveSecs = false; // this will true if still waiting for delay to finish for 6 seconds 
+
+int delaySensorTrigger = 15000;
+bool delayFifteenSecs = false;
+
+//float Speed = 0.0343;  // Sound speed at cm/us
+ long period, cm, inches;
+//long distance;
+
+long minDist;
+
+void setup()
+{
+  Serial.begin(9600);
+  pinMode(ldr, INPUT_PULLUP);
+  pinMode(rgbRed, OUTPUT);
+  pinMode(rgbBlue, OUTPUT);
+  pinMode(rgbGreen, OUTPUT);
+  pinMode(pirSensor, INPUT_PULLUP);
+  pinMode(potMeter, INPUT_PULLUP);
+  pinMode(echoPin, INPUT_PULLUP);
+  pinMode(triggerPin, OUTPUT);
+  pinMode(distanceAdjuster, INPUT_PULLUP);
+  
+  pinMode(2, INPUT_PULLUP);
+  pinMode(7, INPUT_PULLUP);
+  
+  pinMode(A3, INPUT_PULLUP);
+
+  
+} 
+
+void loop()
+{
+  pirStatus = digitalRead(pirSensor);
+  //Serial.println(pirStatus);
+   
+   ldrStatus = analogRead(ldr);
+   Serial.print(ldrStatus);
+   Serial.println(" is the LDR value");
+  
+     potController(); 
+  
+  
+  // here we use a if statement to trigger the 5 seconds delay if the daylight 
+  // intensity reduces to threshold 
+  
+  if(ldrStatus <= sensitivityThreshold  && delayFiveSecs == false){
+    
+    int delaySecs = 1000; // we set a delay of 1000 milliseconds for every sequence of the led 
+    
+    for(int delayCounter = 0; delayCounter < delayLightSecs; delayCounter += delaySecs){ 
+        
+    	activateLight();
+        delay(delaySecs);
+      	delayLightSecs - delaySecs;// reduction of 1000 milliseconds for every sequence of the led for 6 seconds  
+    }
+    
+     delayFiveSecs = true;
+
+ } 
+
+  
+   ultraDistanceSetup();
+  
+   Serial.println("----------------");
+   Serial.print(cm);
+   Serial.println("cm value for ultra sensor");
+   Serial.println("----------------");
+  
+   // the ultrasonic sensor is set in such a way that distances at or below 300 triggers the PIR and the light is activated
+    
+  distanceController();
+ if(ldrStatus <= sensitivityThreshold  && cm <= minDist && pirStatus == HIGH){  
+    	int delayInSecs = 1000; 
+    for(int delayCounter = 0; delayCounter < delaySensorTrigger; delayCounter += delayInSecs){   
+         activateLight(); 
+         delay(delayInSecs);
+      	 delaySensorTrigger - delayInSecs;
+      
+    }   
+  }
+    manualMode();
+    strobeEffect();
+    colorController();
+   
+    
+}
+
+
+void ultraDistanceSetup(){
+   digitalWrite(triggerPin, LOW);// Make sure that the TRIG is deactivated
+   delayMicroseconds(2);  // Make sure that the TRIG is in LOW
+  
+   digitalWrite(triggerPin, HIGH);       // Activate the output pulse 
+   delayMicroseconds(10); // Wait for 10µs, the pulse remains active during this time
+  
+   digitalWrite(triggerPin, LOW); //Stop the pulse and wait for ECHO 
+  
+   period = pulseIn(echoPin, HIGH) ;// pulseIn measures the time since the defined pin (echoPin) changes its status from low to high (from 0 to 1)
+  
+   cm = microsecToCm(period);
+  
+   //distance = Speed* period / 2;
+}
+
+
+long microsecToCm(long microseconds)
+{
+	return microseconds / 29 / 2;
+}
+
+void whiteOn(){
+  analogWrite(rgbRed, 255); 
+  analogWrite(rgbGreen, 255); 
+  analogWrite(rgbBlue, 255);
+}
+ 
+
+
+void activateLight(){
+  
+	digitalWrite(rgbRed, HIGH);
+    delay(100);
+  	digitalWrite(rgbRed, LOW);
+    delay(40);
+    digitalWrite(rgbBlue, HIGH);
+    delay(100);
+    digitalWrite(rgbBlue, LOW);
+    delay(40);
+    digitalWrite(rgbGreen, HIGH);
+    delay(100);
+    digitalWrite(rgbGreen, LOW);
+    delay(40);
+  //whiteOn();
+  delay(500);
+}
+
+void potController(){
+
+  potStatusInput = analogRead(potMeter);
+  //Serial.println(potStatusInput);
+  
+  potStatusOutput = map(potStatusInput, 0, 1023, 54, 974);
+  
+  //Serial.print(potStatusOutput);
+  //Serial.println(" is the potentiometer value");
+  
+  
+    sensitivityThreshold = potStatusOutput;
+  
+    Serial.print(sensitivityThreshold);
+    Serial.println(" is the Sensitivity Threshold value");
+}
+
+
+void distanceController(){
+	
+	distanceAdjusterInput = analogRead(distanceAdjuster);
+    //Serial.print(distanceAdjusterInput);
+   // Serial.println(" input value for ultrasonic distance adjuster");
+
+  	distanceAdjusterOutput = map(distanceAdjusterInput, 0, 1023, 2, 400);// gotten from ultrasonic sensor registers 
+  //highest is 400cm and lowest is 2cm.
+  
+    //Serial.print(distanceAdjusterOutput);
+    //Serial.println(" output value for ultrasonic distance adjuster");
+  
+    minDist = distanceAdjusterOutput;
+  	Serial.print(minDist);
+    Serial.println(" is the adjusted value for distance by user");
+  
+
+}
+
+// once button is clicked, led will not go off 
+void manualMode(){
+  int btnStatus = digitalRead(2);   
+  if(btnStatus  == LOW){
+     digitalWrite(rgbGreen, HIGH);
+  }
+}
+
+
+void colorController(){
+    int controlColorBtnStatus = digitalRead(7);      
+  if(controlColorBtnStatus == LOW){
+      whiteOn(); // white
+      delay(500);
+    //magenta
+      analogWrite(rgbRed, 255);
+      analogWrite(rgbGreen, 0);
+      analogWrite(rgbBlue, 255);   
+      delay(500);
+    //raspberry
+      analogWrite(rgbRed, 255);
+      analogWrite(rgbGreen, 255);
+      analogWrite(rgbBlue, 125);   
+      delay(500);       
+  } else {
+     analogWrite(rgbRed, LOW);
+    analogWrite(rgbGreen, LOW);
+    analogWrite(rgbBlue, LOW);
+    
+  }
+    
+}
+
+void strobeEffect(){
+  int strobeStatusInput = analogRead(A3);
+  
+  //int strobeStatusOutput = map(strobeStatusInput, 0, 1023, 0, 255);
+  
+  analogWrite(rgbBlue, strobeStatusInput);
+  delay(10);
+}
